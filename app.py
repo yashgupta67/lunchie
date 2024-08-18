@@ -3,14 +3,28 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
 from wtforms import StringField, IntegerField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Length, Email, EqualTo
+from wtforms import StringField, SelectField, IntegerField, SubmitField
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import IntegrityError
+import stripe
+
 
 app = Flask(__name__)
+
+# Configuration
 app.config['SECRET_KEY'] = os.urandom(24).hex()
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///orders.db'
+
+# Stripe API keys
+app.config['STRIPE_PUBLIC_KEY'] = os.getenv('STRIPE_PUBLIC_KEY')  
+app.config['STRIPE_SECRET_KEY'] = os.getenv('STRIPE_SECRET_KEY')  
+        
+
 db = SQLAlchemy(app)
+
+# Initialize Stripe with your secret key
+stripe.api_key = app.config['STRIPE_SECRET_KEY']
 
 
 # Define the User model
@@ -29,6 +43,7 @@ class Order(db.Model):
     phone = db.Column(db.String(20), nullable=False)
     order_items = db.Column(db.String(200), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
+    paid = db.Column(db.Boolean, default=False)  # New field to track payment status
 
 
 # Define the SignUpForm class
@@ -46,18 +61,32 @@ class LoginForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
     submit = SubmitField('Login')
 
+
 # Define the OrderForm class
 class OrderForm(FlaskForm):
-    order_items = StringField('Order Items', validators=[DataRequired()])
+    product = SelectField('Product', choices=[
+        ('Paneer Butter Masala', 'Paneer Butter Masala'),
+        ('Chicken Biryani', 'Chicken Biryani'),
+        ('Chole Bhature', 'Chole Bhature'),
+        ('Masala Dosa', 'Masala Dosa'),
+        ('Butter Chicken', 'Butter Chicken'),
+        ('Palak Paneer', 'Palak Paneer'),
+        ('Tandoori Chicken', 'Tandoori Chicken'),
+        ('Dal Makhani', 'Dal Makhani'),
+        ('Aloo Gobi', 'Aloo Gobi'),
+        ('Prawn Masala', 'Prawn Masala')
+    ], validators=[DataRequired()])
     quantity = IntegerField('Quantity', validators=[DataRequired()])
     phone = StringField('Phone', validators=[DataRequired()])
     submit = SubmitField('Submit Order')
+
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     form = SignUpForm()
     if form.validate_on_submit():
-        hashed_password = generate_password_hash(form.password.data, method='sha256')
+        hashed_password = generate_password_hash(form.password.data, method='pbkdf2:sha256')
+
         user = User(username=form.username.data, email=form.email.data, password=hashed_password)
         try:
             db.session.add(user)
@@ -79,7 +108,6 @@ def login():
             session['user_id'] = user.id
             session['username'] = user.username
             session['user_email'] = user.email
-            session['user_phone'] = user.email  # Dummy value, update as necessary
             flash('Login successful!', 'success')
             return redirect(url_for('index'))
         else:
@@ -107,26 +135,28 @@ def index():
         existing_order = Order.query.filter_by(
             name=user.username,
             email=user.email,
-            order_items=form.order_items.data
+            order_items=form.product.data  # Use 'product' instead of 'order_items'
         ).first()
 
         if existing_order:
             existing_order.quantity += form.quantity.data
             existing_order.phone = form.phone.data  # Update the phone number
             db.session.commit()
+            return redirect(url_for('checkout', order_id=existing_order.id))
         else:
             order = Order(
                 name=user.username,
                 email=user.email,
                 phone=form.phone.data,  # Store the phone number from the form
-                order_items=form.order_items.data,
+                order_items=form.product.data,  # Use 'product' instead of 'order_items'
                 quantity=form.quantity.data
             )
             db.session.add(order)
             db.session.commit()
-
-        return redirect(url_for('orders'))
+            return redirect(url_for('checkout', order_id=order.id))
     return render_template('index.html', form=form)
+
+
 
 @app.route('/orders')
 def orders():
@@ -137,6 +167,7 @@ def orders():
     orders = Order.query.filter_by(email=session.get('user_email')).all()
     return render_template('orders.html', orders=orders)
 
+
 @app.route('/delete/<int:id>')
 def delete_order(id):
     if 'user_id' not in session:
@@ -144,19 +175,51 @@ def delete_order(id):
         return redirect(url_for('login'))
 
     order = Order.query.get_or_404(id)
-    if order.quantity > 1:
-        # Decrease the quantity by one
-        order.quantity -= 1
-        db.session.commit()
-        flash('Order quantity decreased by one.', 'success')
-    else:
-        # Remove the order if quantity is zero
-        db.session.delete(order)
-        db.session.commit()
-        flash('Order deleted successfully!', 'success')
-
+    db.session.delete(order)
+    db.session.commit()
+    flash('Order deleted successfully!', 'success')
     return redirect(url_for('orders'))
 
+
+@app.route('/checkout/<int:order_id>', methods=['GET'])
+def checkout(order_id):
+    order = Order.query.get_or_404(order_id)
+    if not order.paid:
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': order.order_items,
+                    },
+                    'unit_amount': 1000 * order.quantity,  # Assuming each item is $10
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=url_for('payment_success', order_id=order_id, _external=True),
+            cancel_url=url_for('payment_cancel', _external=True),
+        )
+        return redirect(session.url, code=303)
+    else:
+        flash('Order already paid.', 'info')
+        return redirect(url_for('orders'))
+
+
+@app.route('/success/<int:order_id>')
+def payment_success(order_id):
+    order = Order.query.get_or_404(order_id)
+    order.paid = True
+    db.session.commit()
+    flash('Payment successful! Thank you for your order.', 'success')
+    return redirect(url_for('orders'))
+
+
+@app.route('/cancel')
+def payment_cancel():
+    flash('Payment canceled. You can try again.', 'warning')
+    return redirect(url_for('orders'))
 
 
 if __name__ == '__main__':
