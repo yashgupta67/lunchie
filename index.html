@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Form</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: url('https://img.freepik.com/premium-psd/free-food-service-arrangement-with-background-mock-up_23-2148421299.jpg?size=626&ext=jpg&ga=GA1.1.2008272138.1723420800&semt=ais_hybrid') no-repeat center center fixed;
+            background-size: cover;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            justify-content: center;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 700px;
+            position: relative;
+            text-align: center;
+            z-index: 1;
+        }
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1));
+            border-radius: 12px;
+            z-index: -1;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 36px;
+            font-weight: bold;
+        }
+        p {
+            font-size: 18px;
+            color: #555;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        .form-group ul {
+            padding: 0;
+            margin: 0;
+            list-style: none;
+            color: red;
+            font-size: 0.9em;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            background-color: #28a745;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        button:hover {
+            background-color: #218838;
+            transform: scale(1.02);
+        }
+        a {
+            display: block;
+            margin-top: 20px;
+            color: #007bff;
+            text-decoration: none;
+            font-size: 18px;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .meal-ideas {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 700px;
+            margin-top: 30px;
+            text-align: center;
+        }
+        .meal-ideas h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .meal-ideas select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Place Your Order</h1>
+        <p>Fill out the form below to place your order. We look forward to serving you delicious food!</p>
+        <form method="POST" action="{{ url_for('index') }}">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                {{ form.order_items.label }}<br>
+                {{ form.order_items() }}<br>
+                {% if form.order_items.errors %}
+                    <ul>
+                        {% for error in form.order_items.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.quantity.label }}<br>
+                {{ form.quantity() }}<br>
+                {% if form.quantity.errors %}
+                    <ul>
+                        {% for error in form.quantity.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.phone.label }}<br>
+                {{ form.phone() }}<br>
+                {% if form.phone.errors %}
+                    <ul>
+                        {% for error in form.phone.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                {{ form.submit() }}
+            </div>
+        </form>
+        <a href="{{ url_for('orders') }}">View Orders</a>
+        <a href="{{ url_for('logout') }}">Sign Out</a>
+    </div>
+    <div class="meal-ideas">
+        <h2>Meal Ideas</h2>
+        <p>Choose from our popular dishes:</p>
+        <select id="meal-options" name="meal-options">
+            <option value="">Dish Suggestion...</option>
+            <option value="masala_dosa">Masala Dosa (Breakfast)</option>
+            <option value="idli_sambar">Idli Sambar (Breakfast)</option>
+            <option value="paneer_paratha">Paneer Paratha (Breakfast)</option>
+            <option value="poha">Poha (Breakfast)</option>
+            <option value="chole_bhature">Chole Bhature (Lunch)</option>
+            <option value="dal_makhani">Dal Makhani (Lunch)</option>
+            <option value="butter_chicken">Butter Chicken (Lunch)</option>
+            <option value="palak_paneer">Palak Paneer (Lunch)</option>
+            <option value="chicken_biryani">Chicken Biryani (Dinner)</option>
+            <option value="mutton_korma">Mutton Korma (Dinner)</option>
+            <option value="paneer_tikka">Paneer Tikka (Dinner)</option>
+            <option value="dal_tadka">Dal Tadka (Dinner)</option>
+            <option value="gulab_jamun">Gulab Jamun (Dessert)</option>
+            <option value="jalebi">Jalebi (Dessert)</option>
+            <option value="rasgulla">Rasgulla (Dessert)</option>
+            <option value="kheer">Kheer (Dessert)</option>
+        </select>
+    </div>
+</body>
+</html>
